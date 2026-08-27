@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PaperTrader — Virtual ₹100,000</title>
+<style>
+  :root {
+    --bg: #0b0e14; --panel: #131722; --panel2: #1a2030;
+    --border: #232b3d; --text: #e8ecf4; --muted: #8b93a7;
+    --green: #16c784; --red: #ea3943; --accent: #3b82f6;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text);
+         font: 14px/1.5 "Segoe UI", system-ui, sans-serif; padding: 24px; }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  header { display: flex; align-items: center; justify-content: space-between;
+           margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+  h1 { font-size: 20px; }
+  h1 small { color: var(--muted); font-weight: 400; margin-left: 8px; font-size: 13px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+           gap: 12px; margin-bottom: 20px; }
+  .card { background: var(--panel); border: 1px solid var(--border);
+          border-radius: 12px; padding: 14px 16px; }
+  .card .lbl { color: var(--muted); font-size: 11px; text-transform: uppercase;
+               letter-spacing: .06em; }
+  .card .val { font-size: 22px; font-weight: 600; margin-top: 4px;
+               font-variant-numeric: tabular-nums; }
+  .pos { color: var(--green); } .neg { color: var(--red); }
+  .grid { display: grid; grid-template-columns: 340px 1fr; gap: 16px;
+          align-items: start; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--border);
+           border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  .panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em;
+              color: var(--muted); margin-bottom: 12px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+  input[type=text], input[type=number] {
+    width: 100%; background: var(--panel2); border: 1px solid var(--border);
+    color: var(--text); border-radius: 8px; padding: 9px 10px; font-size: 14px; }
+  input:focus { outline: none; border-color: var(--accent); }
+  .quote { display: flex; justify-content: space-between; align-items: center;
+           background: var(--panel2); border: 1px solid var(--border);
+           border-radius: 8px; padding: 8px 12px; margin-top: 10px;
+           min-height: 40px; font-size: 13px; color: var(--muted); }
+  .quote .px { font-size: 17px; font-weight: 600; color: var(--text); }
+  .btnrow { display: flex; gap: 8px; margin-top: 12px; }
+  button { border: none; border-radius: 8px; padding: 10px 14px; font-size: 14px;
+           font-weight: 600; cursor: pointer; color: #fff; flex: 1; }
+  button.buy  { background: var(--green); }
+  button.sell { background: var(--red); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .chip { flex: none; background: var(--panel2); border: 1px solid var(--border);
+          color: var(--muted); border-radius: 999px; padding: 5px 11px;
+          font-size: 12px; cursor: pointer; }
+  .chip:hover { color: var(--text); border-color: var(--accent); }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th { text-align: left; color: var(--muted); font-size: 11px; text-transform: uppercase;
+       letter-spacing: .05em; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  td { padding: 8px; border-bottom: 1px solid #1c2333; font-size: 13px; }
+  tr:last-child td { border-bottom: none; }
+  td.num, th.num { text-align: right; }
+  .sym { font-weight: 600; }
+  .side { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 5px; }
+  .side.BUY { background: rgba(22,199,132,.15); color: var(--green); }
+  .side.SELL { background: rgba(234,57,67,.15); color: var(--red); }
+  .row-sell { display: flex; gap: 6px; justify-content: flex-end; }
+  .row-sell input { width: 76px; padding: 5px 8px; font-size: 13px; }
+  .row-sell button { flex: none; padding: 5px 12px; font-size: 12px;
+                     background: var(--red); }
+  .empty { color: var(--muted); text-align: center; padding: 18px 0; font-size: 13px; }
+  .kill { display: flex; align-items: center; gap: 10px; background: var(--panel);
+          border: 1px solid var(--border); border-radius: 12px; padding: 10px 16px; }
+  .switch { position: relative; width: 44px; height: 24px; flex: none; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider { position: absolute; inset: 0; background: var(--panel2);
+            border: 1px solid var(--border); border-radius: 999px; cursor: pointer;
+            transition: .2s; }
+  .slider:before { content: ""; position: absolute; width: 16px; height: 16px;
+                   border-radius: 50%; background: var(--muted); top: 3px; left: 4px;
+                   transition: .2s; }
+  .switch input:checked + .slider { background: rgba(234,57,67,.25);
+                                    border-color: var(--red); }
+  .switch input:checked + .slider:before { transform: translateX(18px);
+                                           background: var(--red); }
+  .kill .klbl { font-size: 13px; }
+  #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+           background: var(--panel2); border: 1px solid var(--border); color: var(--text);
+           padding: 10px 18px; border-radius: 10px; font-size: 13px; display: none;
+           box-shadow: 0 8px 30px rgba(0,0,0,.4); }
+  .muted { color: var(--muted); }
+  select { width: 100%; background: var(--panel2); border: 1px solid var(--border);
+           color: var(--text); border-radius: 8px; padding: 9px 10px; font-size: 14px; }
+  select:focus { outline: none; border-color: var(--accent); }
+  .badge { font-size: 10px; font-weight: 700; background: var(--accent); color: #fff;
+           border-radius: 4px; padding: 1px 6px; margin-left: 5px; vertical-align: middle; }
+  .sig { display: inline-flex; align-items: center; gap: 6px; background: var(--panel2);
+         border: 1px solid var(--border); border-radius: 999px; padding: 4px 11px;
+         margin: 4px 6px 0 0; font-size: 12px; }
+  .sig .s { font-weight: 700; }
+  .sig.BUY { border-color: rgba(22,199,132,.4); color: var(--green); }
+  .sig.SELL, .sig.ERR { border-color: rgba(234,57,67,.4); color: var(--red); }
+  .sig.HOLD { color: var(--muted); }
+  .btnrow .ghost { background: var(--panel2); color: var(--text);
+                   border: 1px solid var(--border); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>📈 PaperTrader <small>virtual account — live market prices</small></h1>
+    <div class="kill">
+      <label class="switch"><input type="checkbox" id="kill"><span class="slider"></span></label>
+      <span class="klbl">Kill switch</span>
+    </div>
+  </header>
+
+  <div class="stats">
+    <div class="card"><div class="lbl">Equity</div><div class="val" id="st-equity">—</div></div>
+    <div class="card"><div class="lbl">Cash</div><div class="val" id="st-cash">—</div></div>
+    <div class="card"><div class="lbl">Today's P&amp;L</div><div class="val" id="st-day">—</div></div>
+    <div class="card"><div class="lbl">Total P&amp;L</div><div class="val" id="st-total">—</div></div>
+    <div class="card"><div class="lbl">Invested</div><div class="val" id="st-mv">—</div></div>
+  </div>
+
+  <div class="grid">
+    <div>
+      <div class="panel">
+        <h2>New order</h2>
+        <label for="sym">Symbol</label>
+        <input type="text" id="sym" placeholder="RELIANCE.NS, TCS.NS, AAPL, BTC-INR, ETH-INR…" autocomplete="off">
+        <div class="quote" id="quote"><span>Type a symbol to see the live price</span></div>
+        <label for="qty">Quantity</label>
+        <input type="number" id="qty" placeholder="10" min="0" step="any">
+        <div class="btnrow">
+          <button class="buy" id="btn-buy" disabled>Buy</button>
+          <button class="sell" id="btn-sell" disabled>Sell</button>
+        </div>
+        <div class="chips" id="chips"></div>
+      </div>
+
+      <div class="panel">
+        <h2>🤖 Auto-trader</h2>
+        <div class="kill" style="margin-bottom: 2px;">
+          <label class="switch"><input type="checkbox" id="auto-en"><span class="slider"></span></label>
+          <span class="klbl" id="auto-state">off</span>
+        </div>
+        <label for="auto-strategy">Strategy</label>
+        <select id="auto-strategy">
+          <option value="sma">SMA crossover (golden/death cross)</option>
+          <option value="rsi">RSI reversal (buy &lt;30, sell &gt;70)</option>
+        </select>
+        <div style="display:flex; gap:10px;">
+          <div style="flex:1;">
+            <label for="auto-interval">Check every (min)</label>
+            <input type="number" id="auto-interval" min="1" step="1">
+          </div>
+          <div style="flex:1;">
+            <label for="auto-pos">Per trade (% of equity)</label>
+            <input type="number" id="auto-pos" min="1" max="25" step="1">
+          </div>
+        </div>
+        <label for="auto-symbols">Watchlist (comma-separated)</label>
+        <input type="text" id="auto-symbols" placeholder="BTC-INR, ETH-INR, SOL-INR, TCS.NS" autocomplete="off">
+        <div class="btnrow">
+          <button class="ghost" id="btn-auto-save">Save &amp; apply</button>
+          <button class="ghost" id="btn-auto-now">Check now</button>
+        </div>
+        <div id="auto-signals"></div>
+      </div>
+
+      <div class="panel">
+        <h2>💰 Capital</h2>
+        <label>Allocate capital (resets account)</label>
+        <div style="display:flex; gap:8px;">
+          <input type="number" id="cap" placeholder="100000" min="1000" step="1000" style="flex:2;">
+          <button class="ghost" id="btn-cap" style="flex:1;">Set</button>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel">
+        <h2>Positions</h2>
+        <table>
+          <thead><tr>
+            <th>Symbol</th><th class="num">Qty</th><th class="num">Avg</th>
+            <th class="num">Last</th><th class="num">Value</th>
+            <th class="num">Unrealized</th><th></th>
+          </tr></thead>
+          <tbody id="pos-body"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+
+      <div class="panel">
+        <h2>Trade history</h2>
+        <table>
+          <thead><tr>
+            <th>Time</th><th>Side</th><th>Symbol</th><th class="num">Qty</th>
+            <th class="num">Price</th><th class="num">Value</th><th class="num">Realized</th>
+          </tr></thead>
+          <tbody id="tx-body"><tr><td colspan="7" class="empty">No trades yet</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+const QUICK = ["RELIANCE.NS","TCS.NS","HDFCBANK.NS","INFY.NS","SBIN.NS","AAPL","NVDA","TSLA","MSFT","BTC-INR","ETH-INR","SOL-INR","DOGE-INR"];
+const $ = id => document.getElementById(id);
+const fmt = n => isNaN(n) ? "—" : Number(n).toLocaleString("en-IN", {maximumFractionDigits: 2});
+const sign = n => (n > 0 ? "+" : "") + fmt(n);
+const cls = n => n > 0 ? "pos" : (n < 0 ? "neg" : "");
+
+let quoteCache = null;
+
+function toast(msg, ok = true) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.style.display = "block";
+  t.style.borderColor = ok ? "var(--border)" : "var(--red)";
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.style.display = "none", 3500);
+}
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, opts);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || "Request failed");
+  return j;
+}
+
+function renderAccount(a) {
+  $("st-equity").textContent = a.currency + fmt(a.equity);
+  $("st-cash").textContent = a.currency + fmt(a.cash);
+  const d = $("st-day"); d.textContent = sign(a.daily_pnl); d.className = "val " + cls(a.daily_pnl);
+  const t = $("st-total"); t.textContent = sign(a.total_pnl) + ` (${a.total_pnl_pct}%)`;
+  t.className = "val " + cls(a.total_pnl);
+  $("st-mv").textContent = a.currency + fmt(a.market_value);
+  $("kill").checked = a.kill_switch;
+
+  const pb = $("pos-body");
+  if (!a.positions.length) {
+    pb.innerHTML = '<tr><td colspan="7" class="empty">No open positions — place your first paper trade!</td></tr>';
+  } else {
+    pb.innerHTML = a.positions.map(p => `
+      <tr>
+        <td class="sym">${p.symbol}</td>
+        <td class="num">${p.qty}</td>
+        <td class="num">${fmt(p.avg_price)}</td>
+        <td class="num">${fmt(p.last_price)}</td>
+        <td class="num">${fmt(p.market_value)}</td>
+        <td class="num ${cls(p.unrealized_pnl)}">${sign(p.unrealized_pnl)} <span class="muted">(${p.unrealized_pct}%)</span></td>
+        <td><div class="row-sell">
+          <input type="number" id="q-${p.symbol}" value="${p.qty}" min="0" step="any" title="Qty to sell">
+          <button onclick="sellPos('${p.symbol}')">Sell</button>
+        </div></td>
+      </tr>`).join("");
+  }
+
+  const tb = $("tx-body");
+  if (!a.trades.length) {
+    tb.innerHTML = '<tr><td colspan="7" class="empty">No trades yet</td></tr>';
+  } else {
+    tb.innerHTML = a.trades.map(t => `
+      <tr>
+        <td class="muted">${t.ts.replace("T", " ")}</td>
+        <td><span class="side ${t.side}">${t.side}</span>${t.note === "AUTO" ? '<span class="badge">AUTO</span>' : ""}</td>
+        <td class="sym">${t.symbol}</td>
+        <td class="num">${t.qty}</td>
+        <td class="num">${fmt(t.price)}</td>
+        <td class="num">${fmt(t.value)}</td>
+        <td class="num ${cls(t.realized_pnl ?? 0)}">${t.realized_pnl == null ? "—" : sign(t.realized_pnl)}</td>
+      </tr>`).join("");
+  }
+}
+
+async function refresh() {
+  try { renderAccount(await api("/api/account")); } catch (e) { /* keep last view */ }
+}
+
+async function lookup() {
+  const s = $("sym").value.trim();
+  if (!s) { $("quote").innerHTML = "<span>Type a symbol to see the live price</span>";
+            $("btn-buy").disabled = $("btn-sell").disabled = true; return; }
+  try {
+    const q = await api("/api/quote?symbol=" + encodeURIComponent(s));
+    quoteCache = q;
+    $("quote").innerHTML = `<span>${q.symbol}</span><span class="px">${q.currency}${fmt(q.price)}</span>`;
+    $("sym").value = q.symbol;
+    $("btn-buy").disabled = $("btn-sell").disabled = false;
+  } catch (e) {
+    quoteCache = null;
+    $("quote").innerHTML = `<span style="color:var(--red)">${e.message}</span>`;
+    $("btn-buy").disabled = $("btn-sell").disabled = true;
+  }
+}
+
+async function trade(side) {
+  const symbol = (quoteCache && quoteCache.symbol) || $("sym").value.trim();
+  const qty = parseFloat($("qty").value);
+  if (!symbol) return toast("Enter a symbol first", false);
+  if (!qty || qty <= 0) return toast("Enter a quantity", false);
+  try {
+    const r = await api("/api/trade", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({symbol, side, qty}),
+    });
+    toast(`${side} ${qty} × ${r.symbol} @ ${r.currency ?? ""}${fmt(r.price)} ✓`);
+    $("qty").value = "";
+    await refresh();
+  } catch (e) { toast(e.message, false); }
+}
+
+async function sellPos(symbol) {
+  const qty = parseFloat($("q-" + symbol).value);
+  if (!qty || qty <= 0) return toast("Enter qty to sell", false);
+  try {
+    const r = await api("/api/trade", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({symbol, side: "SELL", qty}),
+    });
+    toast(`Sold ${qty} × ${r.symbol} @ ${fmt(r.price)} ✓`);
+    await refresh();
+  } catch (e) { toast(e.message, false); }
+}
+
+$("kill").addEventListener("change", async e => {
+  try { await api("/api/kill", {method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({on: e.target.checked})});
+    toast(e.target.checked ? "Kill switch ON — no new trades" : "Kill switch off — trading resumed", !e.target.checked);
+  } catch (err) { toast(err.message, false); }
+});
+
+let debounce;
+$("sym").addEventListener("input", () => {
+  clearTimeout(debounce);
+  debounce = setTimeout(lookup, 450);
+});
+$("btn-buy").onclick = () => trade("BUY");
+$("btn-sell").onclick = () => trade("SELL");
+
+$("chips").innerHTML = QUICK.map(s => `<span class="chip" onclick="pick('${s}')">${s}</span>`).join("");
+function pick(s) { $("sym").value = s; lookup(); }
+
+/* ---------------- auto-trader ---------------- */
+function renderAutoSignals(a) {
+  const st = a.status || {};
+  const keys = Object.keys(st);
+  const box = $("auto-signals");
+  if (!keys.length) {
+    box.innerHTML = '<div class="muted" style="margin-top:10px;font-size:12px">No checks yet — save the config, then hit "Check now".</div>';
+    return;
+  }
+  box.innerHTML = keys.map(k => {
+    const s = st[k];
+    const px = s.price ? " · " + fmt(s.price) : "";
+    const act = s.action && s.action !== "none" ? ` · <b>${s.action}</b>` : "";
+    return `<span class="sig ${s.signal}"><span class="s">${s.signal}</span> ${k}${px}<span class="muted">${s.detail}</span>${act}</span>`;
+  }).join("") + (a.last_check
+    ? `<div class="muted" style="margin-top:8px;font-size:11px">Last check: ${a.last_check.replace("T", " ")}</div>`
+    : "");
+}
+
+async function loadAuto() {
+  try {
+    const a = await api("/api/auto");
+    const cfg = a.config;
+    $("auto-en").checked = cfg.enabled;
+    $("auto-strategy").value = cfg.strategy;
+    $("auto-interval").value = cfg.interval_min;
+    $("auto-pos").value = cfg.position_pct;
+    $("auto-symbols").value = cfg.symbols.join(", ");
+    const st = $("auto-state");
+    st.textContent = cfg.enabled ? (a.running ? "ON · running" : "ON · starting") : "off";
+    st.style.color = cfg.enabled ? "var(--green)" : "var(--muted)";
+    renderAutoSignals(a);
+  } catch (e) { /* keep last view */ }
+}
+
+async function saveAuto() {
+  try {
+    const a = await api("/api/auto", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        enabled: $("auto-en").checked,
+        strategy: $("auto-strategy").value,
+        interval_min: parseFloat($("auto-interval").value) || 5,
+        position_pct: parseFloat($("auto-pos").value) || 20,
+        symbols: $("auto-symbols").value,
+      }),
+    });
+    toast(a.config.enabled ? "Auto-trader ON — bot is trading your watchlist" : "Auto-trader off");
+    loadAuto();
+  } catch (e) { toast(e.message, false); }
+}
+
+async function runNow() {
+  try {
+    const r = await api("/api/auto/run-now", {method: "POST"});
+    toast("Signal check done");
+    renderAutoSignals(r);
+    await refresh();
+  } catch (e) { toast(e.message, false); }
+}
+
+async function setCapital() {
+  const cap = parseFloat($("cap").value);
+  if (!cap || cap < 1000) return toast("Enter capital ≥ ₹1,000", false);
+  if (!confirm(`Reset account to ${fmt(cap)}? Positions will be closed.`)) return;
+  try {
+    const a = await api("/api/reset", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({capital: cap}),
+    });
+    toast("Account reset to " + fmt(cap));
+    renderAccount(a);
+  } catch (e) { toast(e.message, false); }
+}
+
+$("auto-en").addEventListener("change", saveAuto);
+$("btn-auto-save").onclick = saveAuto;
+$("btn-auto-now").onclick = runNow;
+$("btn-cap").onclick = setCapital;
+
+refresh();
+loadAuto();
+setInterval(refresh, 15000);
+</script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+# TASKS.md — one small task per line, check off when done
+
+- [ ] add requirements.txt with pinned deps
+- [ ] write unit tests for PaperBroker buy/sell
+- [ ] enforce the 25% position cap in a test
+- [ ] test the daily ₹5k loss limit logic
+- [ ] add a kill-switch confirmation step in the UI
+- [ ] reset the daily loss counter at market open
+- [ ] export trade history to CSV
+- [ ] show open positions on the dashboard
+- [ ] add a balance top-up command for paper mode
+- [ ] log every order with timestamp and reason
+- [ ] add a stop-loss order type
+- [ ] add a take-profit order type
+- [ ] validate symbols before placing orders
+- [ ] handle yfinance API failures gracefully
+- [ ] add a --paper flag to autotrader.py
+- [ ] add a dry-run mode that prints instead of trading
+- [ ] show order status in the UI
+- [ ] show P&L per open position
+- [ ] add a refresh button to the dashboard
+- [ ] move config into config.json with sane defaults
+- [ ] add type hints across engine.py
+- [ ] add a test for the Broker interface contract
+- [ ] document the live-money upgrade path in the README
+- [ ] add a daily summary log line
+- [ ] block duplicate orders for the same symbol within a minute
+- [ ] add a position-sizing helper function
+- [ ] add a market-hours guard
+- [ ] simulate slippage on paper fills
+- [ ] add a simple backtest script using stored state
+- [ ] add a --history flag to show past trades in the CLI
