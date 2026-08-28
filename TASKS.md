@@ -1,12 +1,12 @@
 # TASKS.md — one small task per line, check off when done
 
-- [ ] add requirements.txt with pinned deps
-- [ ] write unit tests for PaperBroker buy/sell
+- [x] add requirements.txt with pinned deps
+- [x] write unit tests for PaperBroker buy/sell
 - [ ] enforce the 25% position cap in a test
 - [ ] test the daily ₹5k loss limit logic
 - [ ] add a kill-switch confirmation step in the UI
 - [ ] reset the daily loss counter at market open
-- [ ] export trade history to CSV
+- [x] export trade history to CSV
 - [ ] show open positions on the dashboard
 - [ ] add a balance top-up command for paper mode
 - [ ] log every order with timestamp and reason
@@ -21,7 +21,7 @@
 - [ ] add a refresh button to the dashboard
 - [ ] move config into config.json with sane defaults
 - [ ] add type hints across engine.py
-- [ ] add a test for the Broker interface contract
+- [x] add a test for the Broker interface contract
 - [ ] document the live-money upgrade path in the README
 - [ ] add a daily summary log line
 - [ ] block duplicate orders for the same symbol within a minute
