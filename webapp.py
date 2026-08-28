@@ -1,5 +1,5 @@
 """PaperTrader webapp — dashboard + trade API on top of the Broker interface."""
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, Response, jsonify, render_template, request
 
 from autotrader import AutoTrader
 from engine import DEFAULT_CASH, PaperBroker, TradeError
@@ -18,6 +18,13 @@ def index():
 @app.get("/api/account")
 def api_account():
     return jsonify(broker.account())
+
+
+@app.get("/api/export")
+def api_export():
+    csv_text = broker.export_trades()
+    return Response(csv_text, mimetype="text/csv",
+                    headers={"Content-Disposition": "attachment; filename=trades.csv"})
 
 
 @app.get("/api/quote")

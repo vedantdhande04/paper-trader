@@ -11,7 +11,9 @@ Guardrails baked in:
   - kill switch (master read-only)
   - no shorting: you can only sell what you hold
 """
+import csv
 import datetime as dt
+import io
 import json
 import sqlite3
 import threading
@@ -392,3 +394,27 @@ class PaperBroker(Broker):
                 }
             finally:
                 c.close()
+
+    # ---------------------------------------------------------------- export
+    def export_trades(self, path=None):
+        """Trade history as CSV text; also writes to `path` if given."""
+        with self.lock:
+            c = self._conn()
+            try:
+                rows = c.execute(
+                    "SELECT ts, symbol, side, qty, price, value, realized_pnl, note "
+                    "FROM trades ORDER BY id").fetchall()
+            finally:
+                c.close()
+        buf = io.StringIO()
+        w = csv.writer(buf)
+        w.writerow(["ts", "symbol", "side", "qty", "price", "value",
+                    "realized_pnl", "note"])
+        for r in rows:
+            w.writerow([r["ts"], r["symbol"], r["side"], r["qty"], r["price"],
+                        r["value"], r["realized_pnl"], r["note"]])
+        text = buf.getvalue()
+        if path:
+            with open(path, "w", newline="") as f:
+                f.write(text)
+        return text
