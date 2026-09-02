@@ -66,6 +66,17 @@ class PaperBrokerTest(unittest.TestCase):
         self.broker.set_kill_switch(False)
         self.broker.buy("TEST.NS", 1)  # works again
 
+    def test_top_up_credits_cash_without_skewing_pnl(self):
+        self.broker.buy("TEST.NS", 10)
+        before = self.broker.account()
+        res = self.broker.top_up(5_000.0)
+        self.assertEqual(res["cash"], before["cash"] + 5_000.0)
+        self.assertEqual(res["start_cash"], before["start_cash"] + 5_000.0)
+        self.assertEqual(res["total_pnl"], before["total_pnl"])
+        self.assertEqual(res["daily_pnl"], before["daily_pnl"])
+        with self.assertRaises(TradeError):
+            self.broker.top_up(-100.0)
+
 
 if __name__ == "__main__":
     unittest.main()

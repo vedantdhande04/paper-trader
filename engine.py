@@ -320,6 +320,28 @@ class PaperBroker(Broker):
             finally:
                 c.close()
 
+    def top_up(self, amount):
+        """Deposit paper cash; raises cost basis too so P&L stays honest.
+
+        cash / start_cash / day_start_equity all move by `amount`, so
+        neither total P&L nor today's P&L is distorted by the deposit.
+        """
+        amount = float(amount)
+        if amount <= 0:
+            raise TradeError("Top-up amount must be positive.")
+        with self.lock:
+            c = self._conn()
+            try:
+                self._roll_day(c)
+                for k in ("cash", "start_cash", "day_start_equity"):
+                    cur = float(self._get_meta(c, k))
+                    c.execute("UPDATE meta SET v=? WHERE k=?",
+                              (str(cur + amount), k))
+                c.commit()
+            finally:
+                c.close()
+        return self.account()
+
     # --------------------------------------------------------- auto-trader cfg
     def get_auto_config(self):
         c = self._conn()

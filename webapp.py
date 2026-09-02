@@ -68,6 +68,15 @@ def api_refresh():
     return jsonify(broker.clear_price_cache())
 
 
+@app.post("/api/topup")
+def api_topup():
+    data = request.get_json(force=True)
+    try:
+        return jsonify(broker.top_up(float(data.get("amount", 0))))
+    except (TradeError, ValueError) as e:
+        return jsonify({"error": str(e)}), 400
+
+
 @app.post("/api/reset")
 def api_reset():
     """Re-allocate capital: close all positions, set balance to `capital`."""
