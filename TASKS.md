@@ -3,12 +3,12 @@
 - [x] add requirements.txt with pinned deps
 - [x] write unit tests for PaperBroker buy/sell
 - [ ] enforce the 25% position cap in a test
-- [ ] test the daily ₹5k loss limit logic
+- [x] test the daily ₹5k loss limit logic
 - [ ] add a kill-switch confirmation step in the UI
 - [ ] reset the daily loss counter at market open
 - [x] export trade history to CSV
 - [ ] show open positions on the dashboard
-- [ ] add a balance top-up command for paper mode
+- [x] add a balance top-up command for paper mode
 - [ ] log every order with timestamp and reason
 - [ ] add a stop-loss order type
 - [ ] add a take-profit order type
@@ -25,7 +25,7 @@
 - [ ] document the live-money upgrade path in the README
 - [ ] add a daily summary log line
 - [ ] block duplicate orders for the same symbol within a minute
-- [ ] add a position-sizing helper function
+- [x] add a position-sizing helper function
 - [ ] add a market-hours guard
 - [ ] simulate slippage on paper fills
 - [ ] add a simple backtest script using stored state
