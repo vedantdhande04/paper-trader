@@ -19,6 +19,7 @@ class PaperBrokerTest(unittest.TestCase):
         tmp.close()
         self.db_path = tmp.name
         self.broker = PaperBroker(self.db_path)
+        PRICES["TEST.NS"] = 100.0   # deterministic baseline per test
         self._orig_resolve = PaperBroker._resolve
         PaperBroker._resolve = fake_resolve
 
@@ -58,6 +59,22 @@ class PaperBrokerTest(unittest.TestCase):
         self.broker.buy("TEST.NS", 5)
         with self.assertRaises(TradeError):
             self.broker.sell("TEST.NS", 6)
+
+    def test_daily_loss_limit_blocks_new_buys(self):
+        self.broker.buy("TEST.NS", 200)   # 20k @ 100, under the 25% cap
+        PRICES["TEST.NS"] = 75.0          # position now worth 15k
+        self.broker._price_cache.clear()  # make the drop visible
+        # equity 95k vs 100k day-start -> today at -5k, right on the limit
+        with self.assertRaises(TradeError):
+            self.broker.buy("TEST.NS", 1)
+
+    def test_buys_allowed_below_daily_loss_limit(self):
+        self.broker.buy("TEST.NS", 200)
+        PRICES["TEST.NS"] = 98.0          # small dip, ~ -400 today
+        self.broker._price_cache.clear()
+        res = self.broker.buy("TEST.NS", 10)
+        self.assertTrue(res["ok"])
+        self.assertEqual(self.broker.position("TEST.NS")["qty"], 210.0)
 
     def test_kill_switch_blocks_trades(self):
         self.broker.set_kill_switch(True)
