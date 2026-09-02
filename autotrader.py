@@ -8,6 +8,8 @@ import threading
 
 import yfinance as yf
 
+from engine import position_size
+
 STRATEGIES = {"sma": "SMA crossover (golden/death cross, 1h bars)",
               "rsi": "RSI reversal (buy <30, sell >70, 1h bars)"}
 
@@ -112,8 +114,7 @@ class AutoTrader:
 
                 if sig == "BUY" and not pos:
                     equity = self.broker.account()["equity"]
-                    budget = equity * cfg["position_pct"] / 100.0
-                    qty = budget / q["price"]
+                    qty = position_size(equity, q["price"], cfg["position_pct"])
                     if qty >= 1e-9:
                         self.broker.buy(sym, qty, note="AUTO")
                         action = f"bought {qty:.6g}"

@@ -37,6 +37,20 @@ AUTO_CONFIG_DEFAULTS = {
 }
 
 
+def position_size(equity, price, pct=20.0):
+    """Order qty for `pct`% of equity, capped by the max position guardrail.
+
+    `pct` is a percentage of current equity; the result is clamped to
+    MAX_POSITION_PCT so a fat-fingered pct can't trip the broker's own cap.
+    """
+    pct = min(100.0, max(0.0, float(pct)))
+    if price <= 0:
+        raise TradeError("Price must be positive to size a position.")
+    cap = MAX_POSITION_PCT * 100.0
+    budget = equity * min(pct, cap) / 100.0
+    return budget / price
+
+
 class TradeError(Exception):
     """A rejected order (insufficient cash, guardrail, unknown symbol...)."""
 
