@@ -105,6 +105,16 @@ class PaperBrokerTest(unittest.TestCase):
         self.broker.buy("TEST.NS", 40)           # 240 @ 100 = 24k — still fine
         self.assertEqual(self.broker.position("TEST.NS")["qty"], 240.0)
 
+    def test_identical_resubmit_blocked_within_a_minute(self):
+        self.broker.buy("TEST.NS", 10)
+        with self.assertRaises(TradeError):      # same symbol/side/qty again
+            self.broker.buy("TEST.NS", 10)
+
+    def test_quick_add_with_different_qty_not_blocked(self):
+        self.broker.buy("TEST.NS", 10)
+        self.broker.buy("TEST.NS", 5)            # scaling in is not a duplicate
+        self.assertEqual(self.broker.position("TEST.NS")["qty"], 15.0)
+
 
 if __name__ == "__main__":
     unittest.main()

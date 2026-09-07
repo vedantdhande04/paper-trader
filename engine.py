@@ -119,6 +119,32 @@ class PaperBroker(Broker):
         c.commit()
         c.close()
 
+    # -------------------------------------------------------- order guards
+    def _check_duplicate(self, symbol, side, qty):
+        """Reject an exact re-submit of the last order within a minute.
+
+        Catches double-clicks and retried HTTP posts. A different quantity
+        or the opposite side (e.g. a quick round trip) is never blocked.
+        """
+        c = self._conn()
+        try:
+            row = c.execute(
+                "SELECT side, qty, ts FROM trades WHERE symbol=? "
+                "ORDER BY id DESC LIMIT 1", (symbol,)).fetchone()
+        finally:
+            c.close()
+        if not row or row["side"] != side or abs(row["qty"] - qty) > 1e-9:
+            return
+        try:
+            age = (dt.datetime.now()
+                   - dt.datetime.fromisoformat(row["ts"])).total_seconds()
+        except (TypeError, ValueError):
+            return
+        if 0 <= age < 60:
+            raise TradeError(
+                f"A {side} of {qty:g} {symbol} just filled — looks like a "
+                f"duplicate, wait a minute before retrying.")
+
     # ------------------------------------------------------------ price data
     def _resolve(self, symbol):
         """Try the symbol as-is, then NSE (.NS) / BSE (.BO) suffixes."""
@@ -231,6 +257,8 @@ class PaperBroker(Broker):
                         f"{(held_qty + qty) * price / equity:.0%} of equity — "
                         f"max allowed is {MAX_POSITION_PCT:.0%}. Reduce qty.")
 
+                self._check_duplicate(resolved, "BUY", qty)
+
                 # execute
                 pos = c.execute("SELECT * FROM positions WHERE symbol=?",
                                 (resolved,)).fetchone()
@@ -278,6 +306,8 @@ class PaperBroker(Broker):
                 if qty > pos["qty"] + 1e-6:
                     raise TradeError(f"You hold {pos['qty']:g} of {resolved}, "
                                      f"can't sell {qty:g}.")
+
+                self._check_duplicate(resolved, "SELL", qty)
 
                 cash = float(self._get_meta(c, "cash"))
                 value = price * qty
