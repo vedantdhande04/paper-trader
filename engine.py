@@ -220,10 +220,15 @@ class PaperBroker(Broker):
                         f"<= -{CURRENCY}{limit:,.0f}). New buys blocked — "
                         f"reset the limit or wait for tomorrow.")
 
-                # position size guardrail
-                if value > MAX_POSITION_PCT * equity:
+                # position size guardrail: the resulting holding in this
+                # symbol (existing qty + this order) must stay under the cap
+                held_row = c.execute("SELECT COALESCE(qty, 0) FROM positions "
+                                     "WHERE symbol=?", (resolved,)).fetchone()
+                held_qty = held_row[0] if held_row else 0.0
+                if (held_qty + qty) * price > MAX_POSITION_PCT * equity:
                     raise TradeError(
-                        f"Position would be {value/equity:.0%} of equity — "
+                        f"Position in {resolved} would be "
+                        f"{(held_qty + qty) * price / equity:.0%} of equity — "
                         f"max allowed is {MAX_POSITION_PCT:.0%}. Reduce qty.")
 
                 # execute

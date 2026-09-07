@@ -94,6 +94,17 @@ class PaperBrokerTest(unittest.TestCase):
         with self.assertRaises(TradeError):
             self.broker.top_up(-100.0)
 
+    def test_position_cap_blocks_stacking_past_25pct(self):
+        self.broker.buy("TEST.NS", 200)          # 20k @ 100 — under the cap
+        # adding 100 more would make the holding 30k = 30% of 100k equity
+        with self.assertRaises(TradeError):
+            self.broker.buy("TEST.NS", 100)
+
+    def test_position_cap_allows_adds_under_25pct(self):
+        self.broker.buy("TEST.NS", 200)
+        self.broker.buy("TEST.NS", 40)           # 240 @ 100 = 24k — still fine
+        self.assertEqual(self.broker.position("TEST.NS")["qty"], 240.0)
+
 
 if __name__ == "__main__":
     unittest.main()
