@@ -15,6 +15,7 @@ import csv
 import datetime as dt
 import io
 import json
+import re
 import sqlite3
 import threading
 import time
@@ -50,6 +51,19 @@ def session_date(now=None):
     if now.time() < MARKET_OPEN:
         day -= dt.timedelta(days=1)
     return day.isoformat()
+
+
+SYMBOL_RE = re.compile(r"^[A-Z0-9][A-Z0-9.\-]{0,19}$")
+
+
+def validate_symbol(symbol):
+    """Normalize + syntax-check a symbol before it hits the network."""
+    symbol = (symbol or "").strip().upper()
+    if not SYMBOL_RE.match(symbol):
+        raise TradeError(
+            f"Invalid symbol '{symbol[:20] or '(empty)'}' — letters, digits, "
+            f"dots and dashes only, e.g. TCS.NS or BTC-INR.")
+    return symbol
 
 
 def position_size(equity, price, pct=20.0):
@@ -229,6 +243,7 @@ class PaperBroker(Broker):
 
     # ---------------------------------------------------------------- trades
     def buy(self, symbol, qty, note=""):
+        symbol = validate_symbol(symbol)
         qty = float(qty)
         if qty <= 0:
             raise TradeError("Quantity must be positive.")
@@ -303,6 +318,7 @@ class PaperBroker(Broker):
                 c.close()
 
     def sell(self, symbol, qty, note=""):
+        symbol = validate_symbol(symbol)
         qty = float(qty)
         if qty <= 0:
             raise TradeError("Quantity must be positive.")

@@ -115,6 +115,14 @@ class PaperBrokerTest(unittest.TestCase):
         self.broker.buy("TEST.NS", 5)            # scaling in is not a duplicate
         self.assertEqual(self.broker.position("TEST.NS")["qty"], 15.0)
 
+    def test_garbage_symbol_rejected_before_resolve(self):
+        with self.assertRaises(TradeError):
+            self.broker.buy("BAD SYM$", 1)
+
+    def test_symbol_case_and_space_normalized(self):
+        self.broker.buy("  test.ns  ", 10)   # cleaned up to TEST.NS
+        self.assertIsNotNone(self.broker.position("TEST.NS"))
+
 
 if __name__ == "__main__":
     unittest.main()
