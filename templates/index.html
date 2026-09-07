@@ -110,9 +110,12 @@
 <div class="wrap">
   <header>
     <h1>📈 PaperTrader <small>virtual account — live market prices</small></h1>
-    <div class="kill">
-      <label class="switch"><input type="checkbox" id="kill"><span class="slider"></span></label>
-      <span class="klbl">Kill switch</span>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <div class="kill">
+        <label class="switch"><input type="checkbox" id="kill"><span class="slider"></span></label>
+        <span class="klbl">Kill switch</span>
+      </div>
+      <button class="ghost" id="btn-refresh" style="flex:none; padding:8px 14px;">Refresh</button>
     </div>
   </header>
 
@@ -429,6 +432,14 @@ $("auto-en").addEventListener("change", saveAuto);
 $("btn-auto-save").onclick = saveAuto;
 $("btn-auto-now").onclick = runNow;
 $("btn-cap").onclick = setCapital;
+
+$("btn-refresh").onclick = async () => {
+  try {
+    await api("/api/refresh", {method: "POST"});  // drop the price cache
+    await refresh();
+    toast("Prices refreshed");
+  } catch (e) { toast(e.message, false); }
+};
 
 refresh();
 loadAuto();
