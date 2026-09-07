@@ -36,6 +36,21 @@ AUTO_CONFIG_DEFAULTS = {
     "position_pct": 20,              # % of equity per auto-buy (max 25)
 }
 
+MARKET_OPEN = dt.time(9, 15)   # IST — the daily loss counter rolls here
+
+
+def session_date(now=None):
+    """ISO date of the trading session `now` belongs to.
+
+    Sessions roll at market open (09:15 IST) instead of midnight, so the
+    overnight gap after 15:30 doesn't eat into the next day's loss allowance.
+    """
+    now = now or dt.datetime.now()
+    day = now.date()
+    if now.time() < MARKET_OPEN:
+        day -= dt.timedelta(days=1)
+    return day.isoformat()
+
 
 def position_size(equity, price, pct=20.0):
     """Order qty for `pct`% of equity, capped by the max position guardrail.
@@ -97,7 +112,7 @@ class PaperBroker(Broker):
         """)
         cash = self._get_meta(c, "cash")
         if cash is None:
-            today = dt.date.today().isoformat()
+            today = session_date()
             c.execute(
                 "INSERT INTO meta (k,v) VALUES "
                 "('cash',?),('start_cash',?),('day_start_equity',?),('day',?),"
@@ -202,8 +217,8 @@ class PaperBroker(Broker):
         return cash + mv
 
     def _roll_day(self, c):
-        """On a new day, snapshot starting equity for the daily-loss guardrail."""
-        today = dt.date.today().isoformat()
+        """On a new session (market-open roll), snapshot starting equity."""
+        today = session_date()
         if self._get_meta(c, "day") != today:
             prices = {s: self.quote(s)["price"] for s in
                       [r["symbol"] for r in c.execute("SELECT symbol FROM positions")]}
@@ -346,7 +361,7 @@ class PaperBroker(Broker):
             c = self._conn()
             try:
                 c.execute("DELETE FROM positions")
-                today = dt.date.today().isoformat()
+                today = session_date()
                 for k in ("cash", "start_cash", "day_start_equity"):
                     c.execute("UPDATE meta SET v=? WHERE k=?", (str(capital), k))
                 c.execute("UPDATE meta SET v=? WHERE k='day'", (today,))
