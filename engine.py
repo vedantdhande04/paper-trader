@@ -28,6 +28,7 @@ CURRENCY = "₹"
 DAILY_LOSS_LIMIT = 5_000.0   # rupees: block new buys if today's P&L <= -limit
 MAX_POSITION_PCT = 0.25      # max 25% of equity per symbol
 PRICE_CACHE_TTL = 60         # seconds; avoids hammering Yahoo
+TRANSIENT_RETRY_SLEEP = 0.5  # seconds between the two Yahoo lookup attempts
 
 AUTO_CONFIG_DEFAULTS = {
     "enabled": False,
@@ -105,6 +106,7 @@ class PaperBroker(Broker):
         self.db = db
         self.lock = threading.RLock()   # RLock so internal calls can nest
         self._price_cache = {}
+        self._last_prices = {}          # last good price per symbol, survives cache clears
         self._init_db()
 
     # ------------------------------------------------------------- db setup
@@ -175,22 +177,66 @@ class PaperBroker(Broker):
                 f"duplicate, wait a minute before retrying.")
 
     # ------------------------------------------------------------ price data
+    def _last_price(self, cand):
+        """fast_info last price for one candidate; retries once, never guesses.
+
+        Returns None when Yahoo answers but has no price for the symbol
+        (usually just a wrong ticker). Raises the underlying error when the
+        lookup itself failed, so the caller can tell "no such symbol" apart
+        from "the quote service is having a bad day".
+        """
+        last_err = None
+        for attempt in (0, 1):
+            try:
+                raw = yf.Ticker(cand).fast_info.last_price
+            except Exception as e:
+                if getattr(getattr(e, "response", None), "status_code", None) == 404:
+                    return None          # Yahoo says this symbol doesn't exist
+                last_err = e
+                if attempt == 0:
+                    time.sleep(TRANSIENT_RETRY_SLEEP)
+                continue
+            if raw is None:
+                return None              # answered, but no price for this ticker
+            try:
+                last = float(raw)
+            except (TypeError, ValueError):
+                return None
+            return last if last > 0 else None
+        raise last_err
+
     def _resolve(self, symbol):
         """Try the symbol as-is, then NSE (.NS) / BSE (.BO) suffixes."""
         symbol = symbol.strip().upper()
         candidates = [symbol]
         if not symbol.endswith((".NS", ".BO")) and "-" not in symbol:
             candidates += [symbol + ".NS", symbol + ".BO"]
+        failures = []
         for cand in candidates:
             try:
-                t = yf.Ticker(cand)
-                px = t.fast_info
-                last = float(px.last_price)
-                if last and last > 0:
-                    return cand, last
-            except Exception:
+                last = self._last_price(cand)
+            except Exception as e:
+                failures.append(f"{cand}: {type(e).__name__}")
                 continue
+            if last:
+                return cand, last
+        if failures and len(failures) == len(candidates):
+            raise TradeError(
+                f"Couldn't get a price for {symbol} from Yahoo "
+                f"({', '.join(failures)}) — looks like a network problem or "
+                f"rate limiting, try again in a minute.")
         raise TradeError(f"Unknown symbol '{symbol}' — try RELIANCE.NS, TCS.NS, AAPL, BTC-INR...")
+
+    def _safe_price(self, symbol):
+        """Price for guardrail math; falls back to the last good one.
+
+        A dashboard refresh must not 500 (or a guardrail must not compare
+        against zero) just because one Yahoo call failed.
+        """
+        try:
+            return self.quote(symbol)["price"]
+        except TradeError:
+            return self._last_prices.get(symbol, 0.0)
 
     def quote(self, symbol):
         """Live price with a short cache. Returns dict for the UI."""
@@ -198,10 +244,12 @@ class PaperBroker(Broker):
         now = time.time()
         cached = self._price_cache.get(symbol)
         if cached and now - cached[1] < PRICE_CACHE_TTL:
+            self._last_prices[symbol] = cached[0]
             return {"symbol": symbol, "price": cached[0], "cached": True,
                     "currency": CURRENCY, "ts": dt.datetime.now().isoformat(timespec="seconds")}
         resolved, price = self._resolve(symbol)
         self._price_cache[resolved] = (price, now)
+        self._last_prices[resolved] = price
         return {"symbol": resolved, "price": price, "cached": False,
                 "currency": CURRENCY, "ts": dt.datetime.now().isoformat(timespec="seconds")}
 
@@ -234,7 +282,7 @@ class PaperBroker(Broker):
         """On a new session (market-open roll), snapshot starting equity."""
         today = session_date()
         if self._get_meta(c, "day") != today:
-            prices = {s: self.quote(s)["price"] for s in
+            prices = {s: self._safe_price(s) for s in
                       [r["symbol"] for r in c.execute("SELECT symbol FROM positions")]}
             c.execute("UPDATE meta SET v=? WHERE k='day_start_equity'",
                       (str(self._equity_at(c, prices)),))
@@ -254,6 +302,7 @@ class PaperBroker(Broker):
                     raise TradeError("Kill switch is ON — trading is paused.")
                 resolved, price = self._resolve(symbol)
                 self._price_cache[resolved] = (price, time.time())
+                self._last_prices[resolved] = price
                 self._roll_day(c)
 
                 cash = float(self._get_meta(c, "cash"))
@@ -263,7 +312,7 @@ class PaperBroker(Broker):
                                      f"have {CURRENCY}{cash:,.2f}.")
 
                 # daily loss guardrail
-                prices = {r["symbol"]: self.quote(r["symbol"])["price"]
+                prices = {r["symbol"]: self._safe_price(r["symbol"])
                           for r in c.execute("SELECT symbol FROM positions")}
                 prices[resolved] = price
                 equity = self._equity_at(c, prices)
@@ -329,6 +378,7 @@ class PaperBroker(Broker):
                     raise TradeError("Kill switch is ON — trading is paused.")
                 resolved, price = self._resolve(symbol)
                 self._price_cache[resolved] = (price, time.time())
+                self._last_prices[resolved] = price
 
                 pos = c.execute("SELECT * FROM positions WHERE symbol=?",
                                 (resolved,)).fetchone()
@@ -443,7 +493,9 @@ class PaperBroker(Broker):
                     try:
                         prices[s] = self.quote(s)["price"]
                     except TradeError:
-                        prices[s] = 0.0
+                        # Yahoo down or rate-limiting: a stale price beats a
+                        # zero, which would fake a total loss on the dashboard.
+                        prices[s] = self._last_prices.get(s, 0.0)
 
                 cash = float(self._get_meta(c, "cash"))
                 start = float(self._get_meta(c, "start_cash"))
