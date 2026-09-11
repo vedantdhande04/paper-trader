@@ -15,6 +15,7 @@ import csv
 import datetime as dt
 import io
 import json
+import logging
 import re
 import sqlite3
 import threading
@@ -29,6 +30,23 @@ DAILY_LOSS_LIMIT = 5_000.0   # rupees: block new buys if today's P&L <= -limit
 MAX_POSITION_PCT = 0.25      # max 25% of equity per symbol
 PRICE_CACHE_TTL = 60         # seconds; avoids hammering Yahoo
 TRANSIENT_RETRY_SLEEP = 0.5  # seconds between the two Yahoo lookup attempts
+SUMMARY_META_KEY = "last_summary_day"
+
+log = logging.getLogger("papertrader")
+
+
+def _setup_logging(level=logging.INFO):
+    """Give the module a console handler so summary lines are actually seen."""
+    if not log.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s %(levelname)s papertrader: %(message)s",
+                              datefmt="%Y-%m-%d %H:%M:%S"))
+        log.addHandler(handler)
+    log.setLevel(level)
+
+
+_setup_logging()
 
 AUTO_CONFIG_DEFAULTS = {
     "enabled": False,
@@ -55,6 +73,14 @@ def session_date(now=None):
 
 
 SYMBOL_RE = re.compile(r"^[A-Z0-9][A-Z0-9.\-]{0,19}$")
+
+
+def summary_line(acc):
+    """One compact line describing the book — used for the daily log."""
+    return (f"summary: cash {CURRENCY}{acc['cash']:,.2f}, "
+            f"equity {CURRENCY}{acc['equity']:,.2f}, "
+            f"today {CURRENCY}{acc['daily_pnl']:+,.2f}, "
+            f"open {len(acc['positions'])}")
 
 
 def validate_symbol(symbol):
@@ -530,7 +556,7 @@ class PaperBroker(Broker):
                     t["value"] = round(t["value"], 2)
                     t["price"] = round(t["price"], 4)
 
-                return {
+                acc = {
                     "cash": round(cash, 2),
                     "equity": round(equity, 2),
                     "start_cash": start,
@@ -548,6 +574,23 @@ class PaperBroker(Broker):
                 }
             finally:
                 c.close()
+        self._log_daily_summary(acc)
+        return acc
+
+    def _log_daily_summary(self, acc):
+        """Write one summary line per trading session, not on every refresh."""
+        today = session_date()
+        c = self._conn()
+        try:
+            if self._get_meta(c, SUMMARY_META_KEY) == today:
+                return
+            c.execute("INSERT INTO meta (k,v) VALUES (?,?) "
+                      "ON CONFLICT(k) DO UPDATE SET v=excluded.v",
+                      (SUMMARY_META_KEY, today))
+            c.commit()
+        finally:
+            c.close()
+        log.info(summary_line(acc))
 
     # ---------------------------------------------------------------- export
     def export_trades(self, path=None):
