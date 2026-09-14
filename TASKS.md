@@ -10,12 +10,12 @@
 - [ ] show open positions on the dashboard
 - [x] add a balance top-up command for paper mode
 - [ ] log every order with timestamp and reason
-- [ ] add a stop-loss order type
+- [x] add a stop-loss order type
 - [ ] add a take-profit order type
 - [x] validate symbols before placing orders
 - [x] handle yfinance API failures gracefully
 - [ ] add a --paper flag to autotrader.py
-- [ ] add a dry-run mode that prints instead of trading
+- [x] add a dry-run mode that prints instead of trading
 - [ ] show order status in the UI
 - [ ] show P&L per open position
 - [x] add a refresh button to the dashboard
@@ -26,7 +26,7 @@
 - [x] add a daily summary log line
 - [x] block duplicate orders for the same symbol within a minute
 - [x] add a position-sizing helper function
-- [ ] add a market-hours guard
+- [x] add a market-hours guard
 - [ ] simulate slippage on paper fills
-- [ ] add a simple backtest script using stored state
+- [x] add a simple backtest script using stored state
 - [x] add a --history flag to show past trades in the CLI
