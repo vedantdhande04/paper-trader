@@ -54,6 +54,7 @@ AUTO_CONFIG_DEFAULTS = {
     "interval_min": 5,               # signal check cadence
     "symbols": ["BTC-INR", "ETH-INR", "SOL-INR", "TCS.NS", "RELIANCE.NS"],
     "position_pct": 20,              # % of equity per auto-buy (max 25)
+    "dry_run": False,                # True: log the signal, place no orders
 }
 
 MARKET_OPEN = dt.time(9, 15)   # IST — NSE opens; the daily loss counter rolls here
@@ -633,6 +634,7 @@ class PaperBroker(Broker):
         cur = self.get_auto_config()
         cur.update(updates or {})
         cur["enabled"] = bool(cur.get("enabled"))
+        cur["dry_run"] = bool(cur.get("dry_run"))
         cur["interval_min"] = max(1, int(cur.get("interval_min", 5)))
         cur["position_pct"] = min(25.0, max(1.0, float(cur.get("position_pct", 20))))
         cur["strategy"] = cur.get("strategy") if cur.get("strategy") in ("sma", "rsi") else "sma"

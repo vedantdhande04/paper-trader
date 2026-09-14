@@ -100,6 +100,7 @@ class AutoTrader:
     # ------------------------------------------------------------------ tick
     def _tick(self):
         cfg = self.config()
+        dry = bool(cfg.get("dry_run"))
         hours = market_hours()
         self.last_hours = hours
         status = {}
@@ -124,11 +125,17 @@ class AutoTrader:
                     equity = self.broker.account()["equity"]
                     qty = position_size(equity, q["price"], cfg["position_pct"])
                     if qty >= 1e-9:
-                        self.broker.buy(sym, qty, note="AUTO")
-                        action = f"bought {qty:.6g}"
+                        if dry:
+                            action = f"would buy {qty:.6g}"
+                        else:
+                            self.broker.buy(sym, qty, note="AUTO")
+                            action = f"bought {qty:.6g}"
                 elif sig == "SELL" and pos:
-                    self.broker.sell(sym, pos["qty"], note="AUTO")
-                    action = f"sold {pos['qty']:.6g}"
+                    if dry:
+                        action = f"would sell {pos['qty']:.6g}"
+                    else:
+                        self.broker.sell(sym, pos["qty"], note="AUTO")
+                        action = f"sold {pos['qty']:.6g}"
 
                 status[sym] = {"signal": sig, "detail": detail, "action": action,
                                "price": q["price"]}
@@ -151,5 +158,6 @@ class AutoTrader:
                 "running": bool(self._thread and self._thread.is_alive()),
                 "last_check": self.last_check,
                 "market": self.last_hours or market_hours(),
+                "dry_run": bool(cfg.get("dry_run")),
                 "status": self.last_status,
                 "strategies": STRATEGIES}
