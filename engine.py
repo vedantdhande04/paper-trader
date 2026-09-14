@@ -170,6 +170,10 @@ class PaperBroker(Broker):
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ts TEXT, symbol TEXT, side TEXT, qty REAL, price REAL,
             value REAL, realized_pnl REAL, note TEXT);
+        CREATE TABLE IF NOT EXISTS orders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            symbol TEXT, kind TEXT, qty REAL, trigger REAL, status TEXT,
+            created_at TEXT, filled_at TEXT, fill_price REAL, note TEXT);
         """)
         cash = self._get_meta(c, "cash")
         if cash is None:
@@ -503,6 +507,119 @@ class PaperBroker(Broker):
                 c.close()
         return self.account()
 
+    # -------------------------------------------------------- pending orders
+    def place_stop_loss(self, symbol, qty, trigger):
+        """Queue a sell that fires once the price drops to `trigger`.
+
+        The order lives in the `orders` table (status OPEN) until
+        check_open_orders() sees the trigger price and turns it into a real
+        sell. Trigger must be BELOW the current price, otherwise it would
+        fire on the next check and is almost certainly a typo.
+        """
+        symbol = validate_symbol(symbol)
+        qty = float(qty)
+        trigger = float(trigger)
+        if qty <= 0:
+            raise TradeError("Quantity must be positive.")
+        if trigger <= 0:
+            raise TradeError("Stop price must be positive.")
+        with self.lock:
+            c = self._conn()
+            try:
+                resolved, price = self._resolve(symbol)
+                self._price_cache[resolved] = (price, time.time())
+                self._last_prices[resolved] = price
+                pos = c.execute("SELECT * FROM positions WHERE symbol=?",
+                                (resolved,)).fetchone()
+                if not pos:
+                    raise TradeError(f"You don't hold {resolved} — nothing to protect.")
+                if qty > pos["qty"] + 1e-6:
+                    raise TradeError(f"You hold {pos['qty']:g} of {resolved}, "
+                                     f"can't protect {qty:g}.")
+                if trigger >= price:
+                    raise TradeError(
+                        f"Stop {CURRENCY}{trigger:,.2f} is not below the last price "
+                        f"{CURRENCY}{price:,.2f} — it would fire immediately.")
+                cur = c.execute(
+                    "INSERT INTO orders (symbol, kind, qty, trigger, status, created_at) "
+                    "VALUES (?,?,?,?,?,?)",
+                    (resolved, "STOP_LOSS", qty, trigger, "OPEN",
+                     dt.datetime.now().isoformat(timespec="seconds")))
+                c.commit()
+                return {"ok": True, "id": cur.lastrowid, "symbol": resolved, "kind": "STOP_LOSS",
+                        "qty": qty, "trigger": trigger, "status": "OPEN"}
+            finally:
+                c.close()
+
+    def open_orders(self):
+        """Pending (unfilled, uncancelled) orders, oldest first."""
+        with self.lock:
+            c = self._conn()
+            try:
+                rows = c.execute("SELECT * FROM orders WHERE status='OPEN' ORDER BY id").fetchall()
+            finally:
+                c.close()
+        return [dict(r) for r in rows]
+
+    def cancel_order(self, order_id):
+        with self.lock:
+            c = self._conn()
+            try:
+                order_id = int(order_id)
+                row = c.execute("SELECT * FROM orders WHERE id=?", (order_id,)).fetchone()
+                if not row:
+                    raise TradeError(f"No order #{order_id}.")
+                if row["status"] != "OPEN":
+                    raise TradeError(f"Order #{order_id} is already {row['status'].lower()}.")
+                c.execute("UPDATE orders SET status='CANCELLED' WHERE id=?", (order_id,))
+                c.commit()
+                return {"ok": True, "id": order_id, "status": "CANCELLED"}
+            finally:
+                c.close()
+
+    def _close_order(self, order_id, status, fill_price=None, note=""):
+        c = self._conn()
+        try:
+            c.execute("UPDATE orders SET status=?, filled_at=?, fill_price=?, note=? WHERE id=?",
+                      (status, dt.datetime.now().isoformat(timespec="seconds"),
+                       fill_price, note or None, int(order_id)))
+            c.commit()
+        finally:
+            c.close()
+
+    def check_open_orders(self):
+        """Fire every OPEN order whose trigger price has been reached.
+
+        Returns the orders that fired (filled or rejected), so the caller can
+        surface them in the UI. Safe to call often: it's a no-op when nothing
+        is armed, and a stale quote never fills an order (price must be > 0).
+        """
+        fired = []
+        rows = self.open_orders()
+        if not rows:
+            return fired
+        c = self._conn()
+        try:
+            if self._get_meta(c, "kill_switch") == "1":
+                # hands off: the stops stay armed and fire once the switch is off
+                return fired
+        finally:
+            c.close()
+        for o in rows:
+            price = self._safe_price(o["symbol"])
+            if not price or price > o["trigger"]:
+                continue
+            try:
+                res = self.sell(o["symbol"], o["qty"], note="STOP LOSS")
+            except TradeError as e:
+                self._close_order(o["id"], "REJECTED", None, str(e))
+                fired.append({**o, "status": "REJECTED", "error": str(e)})
+                continue
+            self._close_order(o["id"], "FILLED", res["price"])
+            fired.append({**o, "status": "FILLED", "fill_price": res["price"],
+                          "realized_pnl": round(res["realized_pnl"], 2)})
+        return fired
+
     # --------------------------------------------------------- auto-trader cfg
     def get_auto_config(self):
         c = self._conn()
@@ -593,6 +710,7 @@ class PaperBroker(Broker):
                 }
             finally:
                 c.close()
+        acc["orders"] = self.open_orders()
         self._log_daily_summary(acc)
         return acc
 

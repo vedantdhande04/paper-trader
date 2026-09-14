@@ -17,7 +17,37 @@ def index():
 
 @app.get("/api/account")
 def api_account():
+    # a dashboard refresh is also the moment a stop-loss gets a chance to fire
+    try:
+        broker.check_open_orders()
+    except Exception:
+        pass
     return jsonify(broker.account())
+
+
+@app.get("/api/orders")
+def api_orders():
+    return jsonify({"orders": broker.open_orders(), "currency": "₹"})
+
+
+@app.post("/api/orders")
+def api_place_order():
+    data = request.get_json(force=True)
+    trigger = data.get("trigger", data.get("stop", 0))
+    try:
+        return jsonify(broker.place_stop_loss(data.get("symbol", ""),
+                                              data.get("qty", 0), trigger))
+    except (TradeError, ValueError, TypeError) as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.post("/api/orders/cancel")
+def api_cancel_order():
+    data = request.get_json(force=True)
+    try:
+        return jsonify(broker.cancel_order(data.get("id", 0)))
+    except (TradeError, ValueError, TypeError) as e:
+        return jsonify({"error": str(e)}), 400
 
 
 @app.get("/api/export")
