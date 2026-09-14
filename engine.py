@@ -56,7 +56,26 @@ AUTO_CONFIG_DEFAULTS = {
     "position_pct": 20,              # % of equity per auto-buy (max 25)
 }
 
-MARKET_OPEN = dt.time(9, 15)   # IST — the daily loss counter rolls here
+MARKET_OPEN = dt.time(9, 15)   # IST — NSE opens; the daily loss counter rolls here
+MARKET_CLOSE = dt.time(15, 30)  # IST — NSE closes
+MARKET_WEEKDAYS = (0, 1, 2, 3, 4)
+
+
+def market_hours(now=None):
+    """Is the Indian equity market open right now?
+
+    Weekday-only check (no holiday calendar yet), used to label the account
+    and to keep the auto-trader from firing equity orders out of hours.
+    Crypto tickers trade 24/7 — callers decide per-symbol.
+    """
+    now = now or dt.datetime.now()
+    if now.weekday() not in MARKET_WEEKDAYS:
+        return {"open": False, "reason": "weekend"}
+    if now.time() < MARKET_OPEN:
+        return {"open": False, "reason": "pre-open"}
+    if now.time() >= MARKET_CLOSE:
+        return {"open": False, "reason": "after close"}
+    return {"open": True, "reason": "open"}
 
 
 def session_date(now=None):

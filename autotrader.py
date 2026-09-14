@@ -8,7 +8,7 @@ import threading
 
 import yfinance as yf
 
-from engine import position_size
+from engine import market_hours, position_size
 
 STRATEGIES = {"sma": "SMA crossover (golden/death cross, 1h bars)",
               "rsi": "RSI reversal (buy <30, sell >70, 1h bars)"}
@@ -67,6 +67,7 @@ class AutoTrader:
         self._tick_lock = threading.Lock()
         self.last_status = {}
         self.last_check = None
+        self.last_hours = None
 
     # ------------------------------------------------------------- lifecycle
     def config(self):
@@ -99,10 +100,17 @@ class AutoTrader:
     # ------------------------------------------------------------------ tick
     def _tick(self):
         cfg = self.config()
+        hours = market_hours()
+        self.last_hours = hours
         status = {}
         for raw in cfg.get("symbols", []):
             raw = raw.strip()
             if not raw:
+                continue
+            # equity tickers only trade during NSE hours; crypto runs all night
+            if not hours["open"] and raw.upper().endswith((".NS", ".BO")):
+                status[raw] = {"signal": "CLOSED", "detail": f"market {hours['reason']}",
+                               "action": "none"}
                 continue
             try:
                 q = self.broker.quote(raw)
@@ -142,5 +150,6 @@ class AutoTrader:
         return {"config": cfg,
                 "running": bool(self._thread and self._thread.is_alive()),
                 "last_check": self.last_check,
+                "market": self.last_hours or market_hours(),
                 "status": self.last_status,
                 "strategies": STRATEGIES}

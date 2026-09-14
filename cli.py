@@ -8,7 +8,7 @@ Read-only: this never places an order.
 """
 import argparse
 
-from engine import CURRENCY, PaperBroker, TradeError
+from engine import CURRENCY, PaperBroker, TradeError, market_hours
 
 HISTORY_DEFAULT = 20
 
@@ -33,6 +33,8 @@ def build_parser():
 
 
 def print_account(acc):
+    hours = market_hours()
+    _out(f"market    {'open' if hours['open'] else 'closed'} ({hours['reason']})")
     _out(f"cash      {CURRENCY}{acc['cash']:,.2f}")
     _out(f"equity    {CURRENCY}{acc['equity']:,.2f}")
     _out(f"today     {CURRENCY}{acc['daily_pnl']:+,.2f}  "
